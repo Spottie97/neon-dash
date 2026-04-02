@@ -295,9 +295,14 @@
         let gameMode = 'solo';       // 'solo' | 'multi'
         let currentScreen = 'menu';
 
-        // Update PARTYKIT_HOST after running: npx partykit deploy
-        // const PARTYKIT_HOST = 'localhost:1999';           // local dev
-        const PARTYKIT_HOST = 'neon-dash.YOURUSERNAME.partykit.dev'; // production
+        // Update after `npx partykit deploy` succeeds — use the hostname the CLI prints (no https://).
+        // Local dev: run `npm run dev:party` and use 'localhost:1999'
+        const PARTYKIT_HOST = 'neon-dash.Spottie97.partykit.dev';
+        let partySocketGen = 0;
+
+        function partyKitHostConfigured() {
+            return !PARTYKIT_HOST.includes('YOURUSERNAME');
+        }
 
         // ── Player ───────────────────────────────────────────────────────────────
         const player = {
@@ -847,20 +852,98 @@
         }
 
         // ── WebSocket ────────────────────────────────────────────────────────────
+        function teardownSocket() {
+            if (!socket) return;
+            socket.onerror = null;
+            socket.onclose = null;
+            socket.close();
+            socket = null;
+        }
+
+        function reportMultiplayerConnectFailure(message) {
+            document.getElementById('searching-msg')?.classList.add('hidden');
+            if (currentScreen === 'lobby-screen') showScreen('main-menu');
+            alert(message);
+        }
+
         function connectToRoom(code) {
-            if (socket) { socket.close(); socket = null; }
+            if (!partyKitHostConfigured()) {
+                reportMultiplayerConnectFailure(
+                    'Multiplayer host is not set. After PartyKit login works, run npx partykit deploy and put the hostname in PARTYKIT_HOST (replace YOURUSERNAME in index.html).'
+                );
+                return;
+            }
+            teardownSocket();
             roomCode = code.toUpperCase();
+            const gen = ++partySocketGen;
+            let opened = false;
+            let failureReported = false;
+            const failOnce = (msg) => {
+                if (failureReported) return;
+                failureReported = true;
+                reportMultiplayerConnectFailure(msg);
+            };
             socket = new PartySocket({ host: PARTYKIT_HOST, room: roomCode });
-            socket.onopen = () => socket.send(JSON.stringify({ type: 'join', name: myName }));
+            socket.onopen = () => {
+                if (gen !== partySocketGen) return;
+                opened = true;
+                socket.send(JSON.stringify({ type: 'join', name: myName }));
+            };
             socket.onmessage = (e) => handleServerMessage(JSON.parse(e.data));
-            socket.onclose = () => { if (currentScreen === 'lobby-screen') showScreen('main-menu'); };
+            socket.onerror = () => {
+                if (gen !== partySocketGen || opened) return;
+                failOnce('Could not reach the PartyKit server. Check PARTYKIT_HOST and that the worker is deployed.');
+            };
+            socket.onclose = () => {
+                if (gen !== partySocketGen) return;
+                if (!opened && currentScreen === 'main-menu') {
+                    failOnce('Could not connect to multiplayer. Check PartyKit deploy and PARTYKIT_HOST.');
+                    return;
+                }
+                if (!opened && currentScreen === 'lobby-screen') {
+                    failOnce('Connection lost before joining. Try again.');
+                    return;
+                }
+                if (currentScreen === 'lobby-screen') showScreen('main-menu');
+            };
         }
 
         function connectToMatchmaking() {
-            if (socket) { socket.close(); socket = null; }
+            if (!partyKitHostConfigured()) {
+                reportMultiplayerConnectFailure(
+                    'Multiplayer host is not set. After PartyKit login works, run npx partykit deploy and put the hostname in PARTYKIT_HOST (replace YOURUSERNAME in index.html).'
+                );
+                return;
+            }
+            teardownSocket();
+            const gen = ++partySocketGen;
+            let opened = false;
+            let failureReported = false;
+            const failOnce = (msg) => {
+                if (failureReported) return;
+                failureReported = true;
+                reportMultiplayerConnectFailure(msg);
+            };
             socket = new PartySocket({ host: PARTYKIT_HOST, room: 'matchmaking' });
-            socket.onopen = () => socket.send(JSON.stringify({ type: 'find-match', name: myName }));
+            socket.onopen = () => {
+                if (gen !== partySocketGen) return;
+                opened = true;
+                socket.send(JSON.stringify({ type: 'find-match', name: myName }));
+            };
             socket.onmessage = (e) => handleServerMessage(JSON.parse(e.data));
+            socket.onerror = () => {
+                if (gen !== partySocketGen || opened) return;
+                failOnce('Could not reach matchmaking. Check PARTYKIT_HOST and PartyKit deploy.');
+            };
+            socket.onclose = () => {
+                if (gen !== partySocketGen) return;
+                if (!opened) {
+                    failOnce('Matchmaking connection failed. Check PartyKit and try again.');
+                    return;
+                }
+                document.getElementById('searching-msg')?.classList.add('hidden');
+                if (currentScreen === 'lobby-screen') showScreen('main-menu');
+            };
         }
 
         function sendToServer(msg) {
@@ -914,7 +997,7 @@
                     showResults(msg.rankings);
                     break;
                 case 'matched':
-                    socket.close();
+                    teardownSocket();
                     connectToRoom(msg.roomCode);
                     break;
                 case 'queued':
@@ -1022,7 +1105,7 @@
         function handleStartGame() { sendToServer({ type: 'start' }); }
 
         function handleLeaveRoom() {
-            socket?.close(); socket = null;
+            teardownSocket();
             multiPlayers = [];
             showScreen('main-menu');
         }
@@ -1037,7 +1120,7 @@
         }
 
         function handleBackToMenu() {
-            socket?.close(); socket = null;
+            teardownSocket();
             multiPlayers = []; gameMode = 'solo';
             showScreen('main-menu');
         }
@@ -1081,10 +1164,3 @@
     </script>
 </body>
 </html>
-
-							<script>
-                            	
-							</script>
-                        </body>
-                        </html>
-                    
