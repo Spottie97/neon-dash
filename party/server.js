@@ -11,9 +11,15 @@ export default class NeonDashServer {
 
   onConnect(conn) {}
 
-  onMessage(conn, raw) {
+  /** PartyKit calls onMessage(message, connection) for class workers — not (connection, message). */
+  onMessage(raw, conn) {
     let msg;
-    try { msg = JSON.parse(raw); } catch { return; }
+    try {
+      msg = typeof raw === 'string' ? JSON.parse(raw) : null;
+    } catch {
+      return;
+    }
+    if (!msg || typeof msg !== 'object') return;
     if (this.isMatchmaking) {
       this.handleMatchmaking(conn, msg);
     } else {
