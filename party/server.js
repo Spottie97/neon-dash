@@ -102,7 +102,15 @@ export default class NeonDashServer {
   }
 
   handleStart(conn) {
-    if (conn.id !== this.hostId || this.gameState !== 'lobby') return;
+    if (conn.id !== this.hostId) return;
+    if (this.gameState === 'ended') {
+      this.gameState = 'lobby';
+      for (const p of this.players.values()) {
+        p.alive = false;
+        p.score = 0;
+      }
+    }
+    if (this.gameState !== 'lobby') return;
     if (this.players.size < 2) {
       conn.send(JSON.stringify({ type: 'error', message: 'Need at least 2 players' }));
       return;
