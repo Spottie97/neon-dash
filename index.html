@@ -19,7 +19,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Neon Dash - Browser Game</title>
-    <script src="https://cdn.jsdelivr.net/npm/partysocket@1/dist/partysocket.min.js"></script>
+    <script type="module">
+      import PartySocket from 'https://esm.sh/partysocket@1.1.16';
+      window.PartySocket = PartySocket;
+    </script>
     <style>
         body {
             margin: 0;
