@@ -1,0 +1,15 @@
+{
+  "name": "neon-dash",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev:party": "partykit dev",
+    "deploy:party": "partykit deploy"
+  },
+  "devDependencies": {
+    "partykit": "^0.0.108"
+  },
+  "dependencies": {
+    "serve": "^14.2.6"
+  }
+}
